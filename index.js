@@ -33,11 +33,92 @@ async function run() {
     //get event api
     app.get("/event/getAll", async (req, res) => {
       try {
-        const result = await eventCollection.find().toArray();
-        res.send({ result, message: "retrieve successfully" });
+        const { search_title, filter_date } = req.query;
+
+        const pipeline = [];
+
+        if (search_title) {
+          pipeline.push({
+            $match: { eventTitle: { $regex: search_title, $options: "i" } },
+          });
+        }
+
+        let startDate, endDate;
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        const currentYear = now.getFullYear();
+        const currentMonthIndex = now.getMonth();
+        const currentDayOfWeek = now.getDay();
+
+        switch (filter_date) {
+          case "today":
+            startDate = new Date(now);
+            endDate = new Date(now);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+          case "currentWeek":
+            startDate = new Date(now);
+            startDate.setDate(now.getDate() - currentDayOfWeek);
+            startDate.setHours(0, 0, 0, 0);
+
+            endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+          case "lastWeek":
+            startDate = new Date(now);
+            startDate.setDate(now.getDate() - currentDayOfWeek - 7);
+            startDate.setHours(0, 0, 0, 0);
+
+            endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+          case "currentMonth":
+            startDate = new Date(currentYear, currentMonthIndex, 1);
+            startDate.setHours(0, 0, 0, 0);
+
+            endDate = new Date(currentYear, currentMonthIndex + 1, 0);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+          case "lastMonth":
+            startDate = new Date(currentYear, currentMonthIndex - 1, 1);
+            startDate.setHours(0, 0, 0, 0);
+
+            endDate = new Date(currentYear, currentMonthIndex, 0);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+          default:
+            break;
+        }
+
+        if (startDate && endDate) {
+          pipeline.push({
+            $addFields: {
+              convertedDateTime: {
+                $dateFromString: {
+                  dateString: "$dateTime",
+                },
+              },
+            },
+          });
+
+          pipeline.push({
+            $match: {
+              convertedDateTime: { $gte: startDate, $lte: endDate },
+            },
+          });
+        }
+
+        const result = await eventCollection.aggregate(pipeline).toArray();
+
+        res.send({ result, message: "Events retrieved successfully" });
       } catch (error) {
         console.error("Error retrieving events:", error);
-        res.status(500).send({ message: "Failed to retrieve events" });
+        res
+          .status(500)
+          .send({ message: "Failed to retrieve events", error: error.message });
       }
     });
     //create event api
