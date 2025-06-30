@@ -22,14 +22,86 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
-    await client.db("event_management").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("event_management").command({ ping: 1 });
 
     const userCollection = client.db("event_management").collection("users");
     const eventCollection = client.db("event_management").collection("events");
 
+    // update attendeeCount
+    app.patch("/event/attendeeCount/:id", async (req, res) => {
+      try {
+        const eventId = req.params.id;
+        const newAttendeeList = req.body.attendeeCount;
+        const filter = { _id: new ObjectId(eventId) };
+
+        const updateDoc = {
+          $set: {
+            attendeeCount: newAttendeeList,
+          },
+        };
+
+        const result = await eventCollection.updateOne(filter, updateDoc, {
+          new: true,
+        });
+
+        if (result.matchedCount === 0) {
+          return res
+            .status(404)
+            .send({ success: false, message: "Event not found." });
+        }
+        if (result.modifiedCount === 0) {
+          return res.status(200).send({
+            success: true,
+            message:
+              "Event found, but no changes applied (already joined or data is identical).",
+          });
+        }
+
+        const updatedEvent = await eventCollection.findOne(filter);
+
+        res.status(200).send({
+          success: true,
+          message: "Event updated successfully.",
+          data: updatedEvent,
+        });
+      } catch (error) {
+        console.error("Error updating attendee count:", error);
+        res.status(500).send({
+          success: false,
+          message: "Failed to update attendee count.",
+          error: error.message,
+        });
+      }
+    });
+    //update event
+    app.patch("/event/:id", async (req, res) => {
+      try {
+        const eventId = req.params.id;
+        const updatedData = req.body;
+        console.log(req.body);
+        const filter = { _id: new ObjectId(eventId) };
+        console.log(filter);
+        const updateDoc = {
+          $set: {
+            ...updatedData,
+          },
+        };
+        const result = await eventCollection.updateOne(filter, updateDoc, {
+          new: true,
+        });
+
+        if (result.matchedCount === 0) {
+          return res.status(404).send({ message: "Event not found." });
+        }
+
+        res.send({ result, message: "Event updated successfully." });
+      } catch (error) {
+        res.status(500).send({
+          message: "Failed to update the event.",
+          error: error.message,
+        });
+      }
+    });
     //Delete event
     app.delete("/event/:id", async (req, res) => {
       const eventId = req.params.id;
