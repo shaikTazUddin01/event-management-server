@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 const app = express();
 const port = process.env.PORT || 3000;
 const { MongoClient, ServerApiVersion } = require("mongodb");
@@ -29,6 +30,24 @@ async function run() {
     const userCollection = client.db("event_management").collection("users");
     const eventCollection = client.db("event_management").collection("events");
 
+    //user login api
+    app.post("/users/login", async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email };
+      const existingUser = await userCollection.findOne(query);
+      if (!existingUser) {
+        return res.send({ message: "user not found" });
+      }
+      const token = jwt.sign(
+        { email: user.email, name: user.name, imageUrl: user.imageUrl },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "10d",
+        }
+      );
+      res.send({ token });
+    });
+    // user registration api
     app.post("/users/registration", async (req, res) => {
       const user = req.body;
       const query = { email: user.email };
