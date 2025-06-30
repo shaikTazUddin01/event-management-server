@@ -30,6 +30,12 @@ async function run() {
     const userCollection = client.db("event_management").collection("users");
     const eventCollection = client.db("event_management").collection("events");
 
+    //create event api
+    app.post("/event/add", async (req, res) => {
+      console.log(req.body);
+      const result = await eventCollection.insertOne(req.body);
+      res.send({ result, message: "new event added successfully" });
+    });
     //user login api
     app.post("/users/login", async (req, res) => {
       const user = req.body;
@@ -39,7 +45,11 @@ async function run() {
         return res.send({ message: "user not found" });
       }
       const token = jwt.sign(
-        { email: user.email, name: user.name, imageUrl: user.imageUrl },
+        {
+          email: existingUser.email,
+          name: existingUser.name,
+          imageUrl: existingUser.imageUrl,
+        },
         process.env.JWT_SECRET,
         {
           expiresIn: "10d",
