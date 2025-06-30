@@ -30,9 +30,18 @@ async function run() {
     const userCollection = client.db("event_management").collection("users");
     const eventCollection = client.db("event_management").collection("events");
 
+    //get event api
+    app.get("/event/getAll", async (req, res) => {
+      try {
+        const result = await eventCollection.find().toArray();
+        res.send({ result, message: "retrieve successfully" });
+      } catch (error) {
+        console.error("Error retrieving events:", error);
+        res.status(500).send({ message: "Failed to retrieve events" });
+      }
+    });
     //create event api
     app.post("/event/add", async (req, res) => {
-      console.log(req.body);
       const result = await eventCollection.insertOne(req.body);
       res.send({ result, message: "new event added successfully" });
     });
