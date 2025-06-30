@@ -4,7 +4,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const app = express();
 const port = process.env.PORT || 3000;
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.25fgudl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // middleware
@@ -30,96 +30,108 @@ async function run() {
     const userCollection = client.db("event_management").collection("users");
     const eventCollection = client.db("event_management").collection("events");
 
+    //Delete event
+    app.delete("/event/:id", async (req, res) => {
+      const eventId = req.params.id;
+      const result = await eventCollection.deleteOne({
+        _id: new ObjectId(eventId),
+      });
+      if (result.deletedCount === 1) {
+        res.send({ message: "Event deleted successfully." });
+      } else {
+        res.status(404).send({ message: "Event not found." });
+      }
+    });
+    // get my event
+    app.get("/event/myEvent", async (req, res) => {
+      const userEmail = req.query.email;
+      const query = { email: userEmail };
+      const result = (await eventCollection.find(query).toArray()).sort();
+      res.send({ result, message: "Events retrieved successfully" });
+    });
     //get event api
     app.get("/event/getAll", async (req, res) => {
-      try {
-        const { search_title, filter_date } = req.query;
+      const { search_title, filter_date } = req.query;
 
-        const pipeline = [];
+      const pipeline = [];
 
-        if (search_title) {
-          pipeline.push({
-            $match: { eventTitle: { $regex: search_title, $options: "i" } },
-          });
-        }
+      if (search_title) {
+        pipeline.push({
+          $match: { eventTitle: { $regex: search_title, $options: "i" } },
+        });
+      }
 
-        let startDate, endDate;
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
+      let startDate, endDate;
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
 
-        const currentYear = now.getFullYear();
-        const currentMonthIndex = now.getMonth();
-        const currentDayOfWeek = now.getDay();
+      const currentYear = now.getFullYear();
+      const currentMonthIndex = now.getMonth();
+      const currentDayOfWeek = now.getDay();
 
-        switch (filter_date) {
-          case "today":
-            startDate = new Date(now);
-            endDate = new Date(now);
-            endDate.setHours(23, 59, 59, 999);
-            break;
-          case "currentWeek":
-            startDate = new Date(now);
-            startDate.setDate(now.getDate() - currentDayOfWeek);
-            startDate.setHours(0, 0, 0, 0);
+      switch (filter_date) {
+        case "today":
+          startDate = new Date(now);
+          endDate = new Date(now);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case "currentWeek":
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - currentDayOfWeek);
+          startDate.setHours(0, 0, 0, 0);
 
-            endDate = new Date(startDate);
-            endDate.setDate(startDate.getDate() + 6);
-            endDate.setHours(23, 59, 59, 999);
-            break;
-          case "lastWeek":
-            startDate = new Date(now);
-            startDate.setDate(now.getDate() - currentDayOfWeek - 7);
-            startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(startDate);
+          endDate.setDate(startDate.getDate() + 6);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case "lastWeek":
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - currentDayOfWeek - 7);
+          startDate.setHours(0, 0, 0, 0);
 
-            endDate = new Date(startDate);
-            endDate.setDate(startDate.getDate() + 6);
-            endDate.setHours(23, 59, 59, 999);
-            break;
-          case "currentMonth":
-            startDate = new Date(currentYear, currentMonthIndex, 1);
-            startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(startDate);
+          endDate.setDate(startDate.getDate() + 6);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case "currentMonth":
+          startDate = new Date(currentYear, currentMonthIndex, 1);
+          startDate.setHours(0, 0, 0, 0);
 
-            endDate = new Date(currentYear, currentMonthIndex + 1, 0);
-            endDate.setHours(23, 59, 59, 999);
-            break;
-          case "lastMonth":
-            startDate = new Date(currentYear, currentMonthIndex - 1, 1);
-            startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(currentYear, currentMonthIndex + 1, 0);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case "lastMonth":
+          startDate = new Date(currentYear, currentMonthIndex - 1, 1);
+          startDate.setHours(0, 0, 0, 0);
 
-            endDate = new Date(currentYear, currentMonthIndex, 0);
-            endDate.setHours(23, 59, 59, 999);
-            break;
-          default:
-            break;
-        }
+          endDate = new Date(currentYear, currentMonthIndex, 0);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        default:
+          break;
+      }
 
-        if (startDate && endDate) {
-          pipeline.push({
-            $addFields: {
-              convertedDateTime: {
-                $dateFromString: {
-                  dateString: "$dateTime",
-                },
+      if (startDate && endDate) {
+        pipeline.push({
+          $addFields: {
+            convertedDateTime: {
+              $dateFromString: {
+                dateString: "$dateTime",
               },
             },
-          });
+          },
+        });
 
-          pipeline.push({
-            $match: {
-              convertedDateTime: { $gte: startDate, $lte: endDate },
-            },
-          });
-        }
-
-        const result = await eventCollection.aggregate(pipeline).toArray();
-
-        res.send({ result, message: "Events retrieved successfully" });
-      } catch (error) {
-        console.error("Error retrieving events:", error);
-        res
-          .status(500)
-          .send({ message: "Failed to retrieve events", error: error.message });
+        pipeline.push({
+          $match: {
+            convertedDateTime: { $gte: startDate, $lte: endDate },
+          },
+        });
       }
+
+      const result = await eventCollection.aggregate(pipeline).toArray();
+
+      res.send({ result, message: "Events retrieved successfully" });
     });
     //create event api
     app.post("/event/add", async (req, res) => {
