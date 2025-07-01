@@ -9,7 +9,15 @@ const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster
 
 // middleware
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://event-management-theta-three.vercel.app",
+    ],
+    credentials: true,
+  })
+);
 
 // mongoDb connection
 const client = new MongoClient(uri, {
@@ -22,7 +30,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
-    // await client.db("event_management").command({ ping: 1 });
+    await client.db("event_management").command({ ping: 1 });
 
     const userCollection = client.db("event_management").collection("users");
     const eventCollection = client.db("event_management").collection("events");
@@ -118,7 +126,10 @@ async function run() {
     app.get("/event/myEvent", async (req, res) => {
       const userEmail = req.query.email;
       const query = { email: userEmail };
-      const result = (await eventCollection.find(query).toArray()).sort();
+      const result = await eventCollection
+        .find(query)
+        .sort({ date: 1 })
+        .toArray();
       res.send({ result, message: "Events retrieved successfully" });
     });
     //get event api
@@ -201,14 +212,17 @@ async function run() {
         });
       }
 
-      const result = await eventCollection.aggregate(pipeline).toArray();
+      const result = await eventCollection
+        .aggregate(pipeline)
+        .sort({ date: 1 })
+        .toArray();
 
       res.send({ result, message: "Events retrieved successfully" });
     });
     //create event api
     app.post("/event/add", async (req, res) => {
       const result = await eventCollection.insertOne(req.body);
-      res.send({ result, message: "new event added successfully" });
+      res.send({ result, message: "New event added successfully" });
     });
     //user login api
     app.post("/users/login", async (req, res) => {
